@@ -29,7 +29,7 @@ simulateDiabeticCohort <- function(n) {
   mat <- as.data.frame(matrix(rep(0, nrow(df) * n), byrow = TRUE, nrow = n))
   names(mat) <- paste("i", df$icd9, sep = "")
   for (i in 1:n) {
-    mat[i, 1:ncol(mat)] <- replicate((ncol(mat)), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.0001)))
+    mat[i, 1:ncol(mat)] <- replicate((ncol(mat)), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.00015)))
     # first five columns are the comorbidities
     comorbidities <- simulateComorbid(1)
     mat[i, "i401"] = comorbidities[1];
@@ -45,22 +45,16 @@ diabICD9s <- simulateDiabeticCohort(50)
 # apply mean() to columns (denoted by 2) to double-check probabilities add up right
 apply(diabICD9s[ , c("i401", "i362.0", "i411", "i410", "i428")], 2, mean)
 
-# Partitions population into diabetic and non-diabetic, applies simulateDiabeticCohort() to diabetics
-# and something else for non-diabetics
+# Control has no diabetics
 simulateControlCohort <- function(n) {
   # not-discrete so don't do Gaussian noises
-  # 9.3% of the population has diabetes type 2 according to diabetes.org
   mat <- as.data.frame(matrix(rep(0, nrow(df) * n), byrow = TRUE, nrow = n))
   names(mat) <- paste("i", df$icd9, sep = "")
   for (i in 1:n) {
-    if (runif(1) < 0.093) {
-      mat[i, ] <- simulateDiabeticCohort(1) 
-    } else {
-        # picked normal because most values are close to the mean
-        # truncated normal to be within 0 and 1
-        mat[i, ] <- replicate(ncol(mat), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.0001)))
+      # picked normal distribution because most values are close to the mean (most people normally aren't sick)
+      # truncated normal to be within 0 and 1
+      mat[i, ] <- replicate(ncol(mat), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.15)))
     }
-  }
   return(mat)
 }
 
@@ -72,28 +66,31 @@ apply(normICD9s[ , c("i401", "i362.0", "i411", "i410", "i428")], 2, mean)
 # Takes two data frames as parameters: rows are individuals and columns are ICD9 codes
 oddsRatio <- function(case, control) {
   # convert everything to be categorical
-  combo <- lapply(rbind(case, control), as.factor)
+  #combo <- lapply(rbind(case, control), as.factor)
+  case <- lapply(case[, c("i401", "i362.0", "i411", "i410", "i428")], as.factor)
+  control <- lapply(control[, c("i401", "i362.0", "i411", "i410", "i428")], as.factor)
+  levels(control)
   #combo <- as.data.frame(lapply(rbind(case, control), as.factor))
-  logReg <- glm(combo$i250 ~ combo$i401 + combo$i362.0 + combo$i411 + combo$i410 + combo$i428, data = combo, family = "binomial")
-  # ~. 
-  #!names(combo) == "i250"
+  #logReg <- glm(combo$i250 ~ combo$i401 + combo$i362.0 + combo$i411 + combo$i410 + combo$i428, data = combo, family = "binomial")
+  # ~. or !names(combo) == "i250"
+  caseLR <- glm(case$i250 ~ case$i401 + case$i362.0 + case$i411 + case$i410 + case$i428, data = case, family = "binomial")
+  controlLR <- glm(control$i250 ~ control$i401 + control$i362.0 + control$i411 + control$i410 + control$i428, data = control, family = "binomial")
+  
   # reverse the log to get odds-ratio
-  exp(coef(logReg))
+  exp(coef(caseLR)) / exp(coef(controlLR))
 }
 
 sum(simulateDiabeticCohort(100)[1, ])
-mean(simulateDiabeticCohort(75))
 sum(simulateControlCohort(100)[1, ])
-mean(simulateControlCohort(75))
 a <- simulateDiabeticCohort(5)
 a[1:5, 1:5]
 colnames(a)
 class(colnames(a)[1:5])
 
 
-# n > 100 takes super long. If n < 10 ish there might not not be two categorical levels (either all 0s or all 1s but not both)
-# 0.9353100     0.9850593     0.8667482     1.0250185     0.9645915     0.9679675 
-oddsRatio(simulateDiabeticCohort(500), simulateControlCohort(500))
+# n > 200 takes super long. If n < 75 ish there might not not be two categorical levels (either all 0s or all 1s but not both)
+# Output for n = 200: 0.9353100     0.9850593     0.8667482     1.0250185     0.9645915     0.9679675 
+oddsRatio(simulateDiabeticCohort(100), simulateControlCohort(100))
 
 # Always disconnect at the end
 dbDisconnect(con)
