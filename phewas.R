@@ -30,13 +30,14 @@ simulateDiabeticCohort <- function(n) {
   names(mat) <- paste("i", df$icd9, sep = "")
   for (i in 1:n) {
     mat[i, 1:ncol(mat)] <- replicate((ncol(mat)), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.00015)))
-    # first five columns are the comorbidities
+    # all in this cohort are diabetic
+    mat[i, "i250"] <- 1;
     comorbidities <- simulateComorbid(1)
-    mat[i, "i401"] = comorbidities[1];
-    mat[i, "i362.0"] = comorbidities[2];
-    mat[i, "i411"] = comorbidities[3];
-    mat[i, "i410"] = comorbidities[4];
-    mat[i, "i428"] = comorbidities[5];
+    mat[i, "i401"] <- comorbidities[1];
+    mat[i, "i362.0"] <- comorbidities[2];
+    mat[i, "i411"] <- comorbidities[3];
+    mat[i, "i410"] <- comorbidities[4];
+    mat[i, "i428"] <- comorbidities[5];
   }
   return(mat)
 }
@@ -53,7 +54,9 @@ simulateControlCohort <- function(n) {
   for (i in 1:n) {
       # picked normal distribution because most values are close to the mean (most people normally aren't sick)
       # truncated normal to be within 0 and 1
-      mat[i, ] <- replicate(ncol(mat), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.15)))
+      mat[i, ] <- replicate(ncol(mat), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.1)))
+      # control has no diabetics
+      mat[i, "i250"] <- 0;
     }
   return(mat)
 }
@@ -64,20 +67,22 @@ normICD9s <- simulateControlCohort(20)
 apply(normICD9s[ , c("i401", "i362.0", "i411", "i410", "i428")], 2, mean)
 
 # Takes two data frames as parameters: rows are individuals and columns are ICD9 codes
+# performs unadjusted logistic regression and returns odds ratio
 oddsRatio <- function(case, control) {
   # convert everything to be categorical
-  #combo <- lapply(rbind(case, control), as.factor)
-  case <- lapply(case[, c("i401", "i362.0", "i411", "i410", "i428")], as.factor)
-  control <- lapply(control[, c("i401", "i362.0", "i411", "i410", "i428")], as.factor)
-  levels(control)
+  combo <- lapply(rbind(case, control), as.factor)
+  #case <- lapply(case[, c("i401", "i362.0", "i411", "i410", "i428")], as.factor)
+  #control <- lapply(control[, c("i401", "i362.0", "i411", "i410", "i428")], as.factor)
   #combo <- as.data.frame(lapply(rbind(case, control), as.factor))
-  #logReg <- glm(combo$i250 ~ combo$i401 + combo$i362.0 + combo$i411 + combo$i410 + combo$i428, data = combo, family = "binomial")
+  logReg <- glm(combo$i250 ~ combo$i401 + combo$i362.0 + combo$i411 + combo$i410 + combo$i428, data = combo, family = "binomial")
   # ~. or !names(combo) == "i250"
-  caseLR <- glm(case$i250 ~ case$i401 + case$i362.0 + case$i411 + case$i410 + case$i428, data = case, family = "binomial")
-  controlLR <- glm(control$i250 ~ control$i401 + control$i362.0 + control$i411 + control$i410 + control$i428, data = control, family = "binomial")
+  #caseLR <- glm(case$i250 ~ case$i401 + case$i362.0 + case$i411 + case$i410 + case$i428, data = case, family = "binomial")
+  #controlLR <- glm(control$i250 ~ control$i401 + control$i362.0 + control$i411 + control$i410 + control$i428, data = control, family = "binomial")
   
   # reverse the log to get odds-ratio
-  exp(coef(caseLR)) / exp(coef(controlLR))
+  #exp(coef(caseLR))
+  #exp(coef(controlLR))
+  exp(coef(logReg))
 }
 
 sum(simulateDiabeticCohort(100)[1, ])
@@ -87,10 +92,10 @@ a[1:5, 1:5]
 colnames(a)
 class(colnames(a)[1:5])
 
+# n > 200 takes super long. If n < 50 ish there might not not be two categorical levels (either all 0s or all 1s but not both)
+# Output for n = 50: 48.9359008     1.1597954     3.6193148     6.6798753     0.5552008 
+oddsRatio(simulateDiabeticCohort(50), simulateControlCohort(50))
 
-# n > 200 takes super long. If n < 75 ish there might not not be two categorical levels (either all 0s or all 1s but not both)
-# Output for n = 200: 0.9353100     0.9850593     0.8667482     1.0250185     0.9645915     0.9679675 
-oddsRatio(simulateDiabeticCohort(100), simulateControlCohort(100))
 
 # Always disconnect at the end
 dbDisconnect(con)
