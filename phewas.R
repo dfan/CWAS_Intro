@@ -16,7 +16,7 @@ simulateComorbid <- function(n) {
 # vectorized for speed
 simulateDiabeticCohort <- function(n) {
   # transpose to n x nrow(df)
-  mat <- as.data.frame(t(replicate(n, rbinom(n = nrow(df), size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.0001)))))
+  mat <- as.data.frame(t(replicate(n, rbinom(n = nrow(df), size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0.1, sd = 0.01)))))
   names(mat) <- paste("i", df$icd9, sep = "")
   # everyone in the case group is a diabetic.
   mat$i250 <- 1
@@ -66,6 +66,7 @@ oddsRatio <- function(case, control) {
   #exp(coef(caseLR))
   #exp(coef(controlLR))
   exp(coef(logReg))
+  return(logReg)
 }
 
 # see average number of conditions each person has
@@ -75,7 +76,7 @@ sum(as.matrix(simulateControlCohort(1000))) / 1000
 
 # If n < 50 ish there might not not be two categorical levels (either all 0s or all 1s but not both)
 # Output for n = 50: 4.893392e+09  6.750515e+08  7.247342e+08  1.139874e+09  1.697405e+09 
-oddsRatio(simulateDiabeticCohort(2500), simulateControlCohort(2500))
+oddsRatio(simulateDiabeticCohort(1000), simulateControlCohort(1000))
 
 # Always disconnect at the end
 dbDisconnect(con)

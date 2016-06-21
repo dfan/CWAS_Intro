@@ -1,5 +1,5 @@
 # MySQL works best without quotes around strings
-# did some pre-processing already on the raw textfile (replaced apostrophes with blanks)
+# did some pre-processing already on the raw textfile (find-replaced apostrophes with blanks)
 original = open('Phewas_rawcode.txt', 'r');
 new = open('Phewas_code.txt', 'w');
 
