@@ -9,60 +9,42 @@ df <- dbReadTable(conn = con, name = "data")
 # that's "sicker" and one that's "less sick". Here all of cohort is diabetic. Function called only on diabetics
 simulateComorbid <- function(n) {
   # one-coin flip for each comorbidity, rows of data frame are people
-  prob <- rep(0, 5)
-  mat <- matrix (rep(0, 5 * n), byrow = TRUE, nrow = n)
-  for (i in 1:n) {
-    # if diabetic is "sicker", odds of each are slightly higher by 0.1
-    if (runif(1) < 0.5) {
-      prob <- c(0.77, 0.3, 0.2, 0.3, 0.4)
-      # if diabetic is "less sick", odds of each are slightly lower by 0.1
-    } else {
-      prob <- c(0.57, 0.1, 0, 0.1, 0.2)
-    }
-    mat[i, ] <- rbinom(n = 5, size = 1, prob)
-  }
-  return(mat)
+  # vectorized to remove for-loop
+  return(sapply(runif(n), function(x) rbinom(n = 5, size = 1,c(0.77, 0.3, 0.2, 0.3, 0.4)*(x>0.5) + c(0.57, 0.1, 0, 0.1, 0.2)*(x<0.5))))
 }
 
 # hypertension(401), retinopathy(362.0), coronary heart disease(411), myocardial infarction(410), congestive heart failure(428)
+# vectorized
 simulateDiabeticCohort <- function(n) {
-  mat <- as.data.frame(matrix(rep(0, nrow(df) * n), byrow = TRUE, nrow = n))
+  # transpose
+  mat <- as.data.frame(t(replicate(n, rbinom(n = nrow(df), size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.00015)))))
   names(mat) <- paste("i", df$icd9, sep = "")
-  for (i in 1:n) {
-    mat[i, 1:ncol(mat)] <- replicate((ncol(mat)), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.00015)))
-    # all in this cohort are diabetic
-    mat[i, "i250"] <- 1;
-    comorbidities <- simulateComorbid(1)
-    mat[i, "i401"] <- comorbidities[1];
-    mat[i, "i362.0"] <- comorbidities[2];
-    mat[i, "i411"] <- comorbidities[3];
-    mat[i, "i410"] <- comorbidities[4];
-    mat[i, "i428"] <- comorbidities[5];
-  }
+  mat$i250 <- 1
+  comorbidities <- simulateComorbid(n)
+  mat$i401 <- comorbidities[1,]
+  mat$i362.0 <- comorbidities[2,]
+  mat$i411 <- comorbidities[3,]
+  mat$i410 <- comorbidities[4,]
+  mat$i428 <- comorbidities[5,] 
+  
   return(mat)
 }
 
-diabICD9s <- simulateDiabeticCohort(50)
+
+diabICD9s <- simulateDiabeticCohort(1000)
 # apply mean() to columns (denoted by 2) to double-check probabilities add up right
 apply(diabICD9s[ , c("i401", "i362.0", "i411", "i410", "i428")], 2, mean)
 
 # Control has no diabetics
 simulateControlCohort <- function(n) {
   # not-discrete so don't do Gaussian noises
-  mat <- as.data.frame(matrix(rep(0, nrow(df) * n), byrow = TRUE, nrow = n))
+  mat <- as.data.frame(t(replicate(n, rbinom(n = nrow(df), size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.00015)))))
   names(mat) <- paste("i", df$icd9, sep = "")
-  for (i in 1:n) {
-      # picked normal distribution because most values are close to the mean (most people normally aren't sick)
-      # truncated normal to be within 0 and 1
-      mat[i, ] <- replicate(ncol(mat), rbinom(n = 1, size = 1, rtruncnorm(1, a = 0, b = 1, mean = 0, sd = 0.1)))
-      # control has no diabetics
-      mat[i, "i250"] <- 0;
-    }
+  mat$i250 <- 0
   return(mat)
 }
 
-
-normICD9s <- simulateControlCohort(20)
+normICD9s <- simulateControlCohort(1000)
 # 2 means to columns
 apply(normICD9s[ , c("i401", "i362.0", "i411", "i410", "i428")], 2, mean)
 
@@ -92,9 +74,9 @@ a[1:5, 1:5]
 colnames(a)
 class(colnames(a)[1:5])
 
-# n > 200 takes super long. If n < 50 ish there might not not be two categorical levels (either all 0s or all 1s but not both)
+# If n < 50 ish there might not not be two categorical levels (either all 0s or all 1s but not both)
 # Output for n = 50: 48.9359008     1.1597954     3.6193148     6.6798753     0.5552008 
-oddsRatio(simulateDiabeticCohort(50), simulateControlCohort(50))
+oddsRatio(simulateDiabeticCohort(1000), simulateControlCohort(1000))
 
 
 # Always disconnect at the end
